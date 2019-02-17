@@ -1,0 +1,288 @@
+library(DAAG) # library for CV
+library("caret")
+library("e1071")
+library("caret")
+library(data.table) # used for reading and manipulation of data
+library(dplyr)      # used for data manipulation and joining
+library(ggplot2)    # used for ploting 
+library(randomForest)
+install.packages("tree")
+library(tree)
+library("rpart")
+library("rpart.plot")
+
+path = "D:\\R project\\dataset_diabetes\\diabetic_data.csv"
+diab = read.csv(path,header=T)
+head(diab)
+ncol(diab)
+nrow(diab)
+str(bank)
+for(i in 1:20){
+  
+}
+diab$encounter_id=NULL
+diab$patient_nbr=NULL
+# check for Nulls, Zeroes for all columns
+col_name = colnames(diab) [apply(diab, 2, function(n) any(is.na(n)))]
+
+if(length(col_name) > 0) print("NULLs present") else print("No NULLs")
+
+col_name = colnames(diab) [apply(diab, 2, function(n) any(n == ""))]
+if(length(col_name) > 0) print("Blanks present") else print("No Blanks")
+
+col_name = colnames(diab) [apply(diab, 2, function(n) any(n==0))]
+print(col_name)
+if(length(col_name) > 0)
+{
+  print("Zeroes present in columns : ")
+  print(col_name)
+} else 
+  print("No Zeroes")
+str(diab)
+hist(diab$num_lab_procedures,breaks=20,col=rgb(1,0,1),main="Lab procedures")
+hist(diab$num_procedures,breaks=20,col=rgb(1,0,1),main="Lab procedures")
+hist(diab$num_medications,breaks=20,col=rgb(1,0,1),main="Medication Number")
+hist(diab$number_outpatient,breaks=20,col=rgb(1,0,1),main="Lab procedures")
+hist(diab$number_emergency,breaks=1,col=rgb(1,0,1),main="Lab procedures")
+hist(diab$number_inpatient,breaks=20,col=rgb(1,0,1),main="Lab procedures")
+hist(diab$number_diagnoses,breaks=20,col=rgb(1,0,1),main="Lab procedures")
+
+
+
+
+#according to discription admission_id ,admission_source_id and discharge_disposition ID are categories 
+#Therefore converting them to factor format
+diab$admission_type_id=as.factor(diab$admission_type_id)
+diab$discharge_disposition_id=as.factor(diab$discharge_disposition_id)
+diab$admission_source_id=as.factor(diab$admission_source_id)
+#according to discharge_disposition_id some of 
+#the categories data is for expire person therefore tha data is irrelevant
+#Expired patient data is removed
+diab <-diab[!(diab$discharge_disposition_id %in% c(11,12,19,20,21)),]
+
+#Univariate Analysis
+namesCol=colnames(diab)
+#For Race
+levels(diab$race)
+ggplot(diab %>% group_by(race) %>% summarise(Count = n())) + 
+geom_bar(aes(race, Count), stat = "identity", fill = "coral1")       
+#since ? data is unknown we will put it in category of other
+levels(diab$race)[levels(diab$race)=="?"] <- "Unknown"
+ggplot(diab %>% group_by(race) %>% summarise(Count = n())) + 
+  geom_bar(aes(race, Count), stat = "identity", fill = "coral1")       
+#Gender
+table(diab$gender)
+#Since Unknown values are very less we can replace it with Mode value
+levels(diab$gender)[levels(diab$gender)=="Unknown/Invalid"] <- "Female"
+ggplot(diab %>% group_by(gender) %>% summarise(Count = n())) + 
+  geom_bar(aes(gender, Count), stat = "identity", fill = "coral1")
+#Age
+table(diab$age)
+ggplot(diab %>% group_by(age) %>% summarise(Count = n())) + 
+  geom_bar(aes(age, Count), stat = "identity", fill = "coral1")
+#Weight
+table(diab$weight)#since max values are not given we will delete this column
+diab$weight=NULL
+#payer code
+table(diab$payer_code)
+levels(diab$payer_code)[levels(diab$payer_code)=="?"] <- "Other"
+#medical Speciality
+table(diab$medical_specialty)
+levels(diab$medical_specialty)[levels(diab$medical_specialty)=="?"] <- "Unknown"
+# Since It has too many levels we will select top 10 variable and put remaing variable in Others
+top_10 = c('Unknown','InternalMedicine','Emergency/Trauma',
+          'Family/GeneralPractice', 'Cardiology','Surgery-General' ,
+          'Nephrology','Orthopedics',
+          'Orthopedics-Reconstructive','Radiologist')
+levels(diab$medical_specialty)[!(levels(diab$medical_specialty) %in% top_10)] <- "Other"
+table(diab$medical_specialty)
+ggplot(diab %>% group_by(medical_specialty) %>% summarise(Count = n())) + 
+  geom_bar(aes(medical_specialty, Count), stat = "identity", fill = "coral1")       
+#diag_1,diag_2,diag_3 all have ICD9 codes therefore Grouping them accordingly
+#Diagnosis 1
+table(diab$diag_1)#Since It has too many Variable we will Group the variable
+levels(diab$diag_1)[levels(diab$diag_1) %in% c(390:459, 785)] <- "Circulatory"
+levels(diab$diag_1)[levels(diab$diag_1) %in% c(460:519, 786)] <- "Respiratory"
+levels(diab$diag_1)[levels(diab$diag_1) %in% c(520:579, 787)] <- "Digestive"
+levels(diab$diag_1)[levels(diab$diag_1) %in% c(seq.default(from = 250,to = 250.99,by =0.01))] <- "Diabetes"
+levels(diab$diag_1)[levels(diab$diag_1) %in% c(800:999)] <- "Injury"
+levels(diab$diag_1)[levels(diab$diag_1) %in% c(710:739)] <- "Musculoskeletal"
+levels(diab$diag_1)[levels(diab$diag_1) %in% c(580:629,788)] <- "Genitourinary"
+levels(diab$diag_1)[levels(diab$diag_1) %in% c(140:239,780,781,784,790:799,240:249,251:279,680:709,782,001:139)] <- "Neoplasms"
+Defined=c("Circulatory","Respiratory","Digestive","Diabetes","Injury","Musculoskeletal","Genitourinary","Neoplasms")
+levels(diab$diag_1)[!(levels(diab$diag_1) %in% Defined)] <- "Other"
+table(diab$diag_1)#Grouped levels by ICD9 codes
+#Diagnosis 2
+table(diab$diag_2)#Since It has too many Variable we will Group the variable
+levels(diab$diag_2)[levels(diab$diag_2) %in% c(390:459, 785)] <- "Circulatory"
+levels(diab$diag_2)[levels(diab$diag_2) %in% c(460:519, 786)] <- "Respiratory"
+levels(diab$diag_2)[levels(diab$diag_2) %in% c(520:579, 787)] <- "Digestive"
+levels(diab$diag_2)[levels(diab$diag_2) %in% c(seq.default(from = 250,to = 250.99,by =0.01))] <- "Diabetes"
+levels(diab$diag_2)[levels(diab$diag_2) %in% c(800:999)] <- "Injury"
+levels(diab$diag_2)[levels(diab$diag_2) %in% c(710:739)] <- "Musculoskeletal"
+levels(diab$diag_2)[levels(diab$diag_2) %in% c(580:629,788)] <- "Genitourinary"
+levels(diab$diag_2)[levels(diab$diag_2) %in% c(140:239,780,781,784,790:799,240:249,251:279,680:709,782,001:139)] <- "Neoplasms"
+Defined=c("Circulatory","Respiratory","Digestive","Diabetes","Injury","Musculoskeletal","Genitourinary","Neoplasms")
+levels(diab$diag_2)[!(levels(diab$diag_2) %in% Defined)] <- "Other"
+table(diab$diag_2)#Grouped levels by ICD9 codes
+#Diagnosis 2
+table(diab$diag_3)#Since It has too many Variable we will Group the variable
+levels(diab$diag_3)[levels(diab$diag_3) %in% c(390:459, 785)] <- "Circulatory"
+levels(diab$diag_3)[levels(diab$diag_3) %in% c(460:519, 786)] <- "Respiratory"
+levels(diab$diag_3)[levels(diab$diag_3) %in% c(520:579, 787)] <- "Digestive"
+levels(diab$diag_3)[levels(diab$diag_3) %in% c(seq.default(from = 250,to = 250.99,by =0.01))] <- "Diabetes"
+levels(diab$diag_3)[levels(diab$diag_3) %in% c(800:999)] <- "Injury"
+levels(diab$diag_3)[levels(diab$diag_3) %in% c(710:739)] <- "Musculoskeletal"
+levels(diab$diag_3)[levels(diab$diag_3) %in% c(580:629,788)] <- "Genitourinary"
+levels(diab$diag_3)[levels(diab$diag_3) %in% c(140:239,780,781,784,790:799,240:249,251:279,680:709,782,001:139)] <- "Neoplasms"
+Defined=c("Circulatory","Respiratory","Digestive","Diabetes","Injury","Musculoskeletal","Genitourinary","Neoplasms")
+levels(diab$diag_3)[!(levels(diab$diag_3) %in% Defined)] <- "Other"
+table(diab$diag_3)#Grouped levels by ICD9 codes
+
+
+ggplot(diab %>% group_by(diag_1) %>% summarise(Count = n())) + 
+  geom_bar(aes(diag_1, Count), stat = "identity", fill = "coral1")
+ggplot(diab %>% group_by(diag_2) %>% summarise(Count = n())) + 
+  geom_bar(aes(diag_2, Count), stat = "identity", fill = "coral1")
+ggplot(diab %>% group_by(diag_3) %>% summarise(Count = n())) + 
+  geom_bar(aes(diag_3, Count), stat = "identity", fill = "coral1")
+
+levels(factor(diab$A1Cresult)) 
+levels(factor(diab$metformin)) 
+levels(factor(diab$repaglinide))
+levels(factor(diab$nateglinide))
+levels(factor(diab$chlorpropamide))
+levels(factor(diab$glimepiride))
+levels(factor(diab$acetohexamide))
+levels(factor(diab$glipizide))
+levels(factor(diab$glyburide))
+levels(factor(diab$tolbutamide))
+levels(factor(diab$pioglitazone))
+levels(factor(diab$rosiglitazone))
+levels(factor(diab$acarbose))
+levels(factor(diab$miglitol))
+levels(factor(diab$troglitazone))
+levels(factor(diab$tolazamide))
+levels(factor(diab$examide))
+levels(factor(diab$citoglipton))
+levels(factor(diab$insulin))
+levels(factor(diab$glyburide.metformin))
+levels(factor(diab$glipizide.metformin))
+levels(factor(diab$glimepiride.pioglitazone))
+levels(factor(diab$metformin.rosiglitazone))
+levels(factor(diab$metformin.pioglitazone))
+levels(factor(diab$change))
+levels(factor(diab$diabetesMed))
+#examide and citoglipton have only one leve therefore there effect on Y variable is insignificant
+diab$examide=NULL
+diab$citoglipton=NULL
+str(diab)
+ncol(diab)
+nrow(diab)
+
+grp = runif(nrow(diab))
+diab = diab[order(grp),]
+# split the dataset into Training and Testing
+# sample = sample(2, nrow(diab), replace = T, prob = c(0.7,0.3))
+set.seed(456)
+ind = sample(seq_len(nrow(diab)), floor(nrow(diab)*0.7)   )
+train = diab[ind,]
+test = diab[-ind,]
+nrow(train)
+nrow(test)
+
+train_x = train[,1:44]
+train_y = train[,45]
+#Base model 
+rf1 = randomForest(train_x, factor(train_y) )
+rf1
+summary(rf1)
+
+# predict the Classification for the Testing data
+# ------------------------------------------------
+pdct_rf1 = predict(rf1, test)
+table(predicted=pdct_rf1,actual=test$readmitted)
+confusionMatrix(pdct_rf1,test$readmitted,
+                positive = "positive")
+pdct_rf1
+
+varUsed(rf1, by.tree = F, count=F)
+importance(rf1)
+
+# variable importance - for feature selection
+# ----------------------------------------------
+varImpPlot(rf1)
+new_data=diab
+#Selecting top 29 element
+IMP_data=select(new_data,num_lab_procedures,num_medications,diag_3,diag_2,diag_1,age,time_in_hospital
+          ,payer_code,medical_specialty,number_inpatient,discharge_disposition_id,number_diagnoses
+          ,insulin,admission_type_id,admission_source_id,race,A1Cresult,number_outpatient,gender
+          ,number_emergency,metformin,glipizide,change,glyburide,diabetesMed,pioglitazone,rosiglitazone,
+          glimepiride,max_glu_serum,readmitted)
+str(IMP_data)
+ncol(IMP_data)
+
+set.seed(456)
+ind = sample(seq_len(nrow(IMP_data)), floor(nrow(IMP_data)*0.7)   )
+train = IMP_data[ind,]
+test = IMP_data[-ind,]
+nrow(train)
+nrow(test)
+
+train_x = train[,1:29]
+train_y = train[,30]
+rf2 = randomForest(train_x, factor(train_y) )
+rf2
+summary(rf2)
+
+# predict the Classification for the Testing data
+# ------------------------------------------------
+pdct_rf2 = predict(rf2, test)
+table(predicted=pdct_rf2,actual=test$readmitted)
+confusionMatrix(pdct_rf2,test$readmitted,
+                positive = "positive")
+pdct_rf2
+
+importance(rf2)
+
+# variable importance - for feature selection
+# ----------------------------------------------
+varImpPlot(rf2)
+#Selecting top 14 element
+IMP_data2=select(new_data,num_lab_procedures,num_medications,diag_3,diag_2,diag_1,age,time_in_hospital
+               ,medical_specialty,number_inpatient,discharge_disposition_id,number_diagnoses
+               ,insulin,admission_type_id,admission_source_id,readmitted)
+
+set.seed(456)
+ind = sample(seq_len(nrow(IMP_data2)), floor(nrow(IMP_data2)*0.7)   )
+train = IMP_data2[ind,]
+test = IMP_data2[-ind,]
+nrow(train)
+nrow(test)
+ncol(IMP_data2)
+train_x = train[,1:14]
+train_y = train[,15]
+rf3 = randomForest(train_x, factor(train_y) )
+rf3
+summary(rf3)
+
+# predict the Classification for the Testing data
+# ------------------------------------------------
+pdct_rf3 = predict(rf3, test)
+table(predicted=pdct_rf3,actual=test$readmitted)
+confusionMatrix(pdct_rf3,test$readmitted,
+                positive = "positive")
+pdct_rf3
+#################################################################################Decison Tree
+
+# use the decision tree
+dt_diab = rpart(readmitted ~., method="class", data=train)
+dt_diab
+# predict the ecoli for the test dataset
+pdct = predict(dt_diab, test, type="class")
+confusionMatrix(test[,29],pdct)
+
+
+#the accuracy of Random forrest is 58% which is higher than dicision having acuracy of 53%
+
+
